@@ -1,9 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import Icon from '@/components/ui/icon'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  avatar: string
+}
 
 interface Chat {
   id: number
@@ -33,94 +40,154 @@ interface Message {
   duration?: string
 }
 
-const stories: Story[] = [
-  { id: 0, name: 'Ваша история', avatar: '/placeholder.svg', hasStory: false, isOwn: true },
-  { id: 1, name: 'Анна', avatar: '/placeholder.svg', hasStory: true },
-  { id: 2, name: 'Макс', avatar: '/placeholder.svg', hasStory: true },
-  { id: 3, name: 'Елена', avatar: '/placeholder.svg', hasStory: true },
-  { id: 4, name: 'Дмитрий', avatar: '/placeholder.svg', hasStory: true },
-]
-
-const chats: Chat[] = [
-  {
-    id: 1,
-    name: 'Анна Петрова',
-    avatar: '/placeholder.svg',
-    lastMessage: 'Привет! Как дела?',
-    timestamp: '14:23',
-    unread: 2,
-    online: true,
-    type: 'personal'
-  },
-  {
-    id: 2,
-    name: 'Команда разработки',
-    avatar: '/placeholder.svg',
-    lastMessage: 'Отлично! Встретимся завтра',
-    timestamp: '12:45',
-    unread: 0,
-    online: false,
-    type: 'group'
-  },
-  {
-    id: 3,
-    name: 'Максим Иванов',
-    avatar: '/placeholder.svg',
-    lastMessage: '📎 Документ',
-    timestamp: 'Вчера',
-    unread: 1,
-    online: true,
-    type: 'personal'
-  },
-  {
-    id: 4,
-    name: 'Мама',
-    avatar: '/placeholder.svg',
-    lastMessage: 'Не забудь позвонить бабушке',
-    timestamp: 'Вчера',
-    unread: 0,
-    online: false,
-    type: 'personal'
-  }
-]
-
-const messages: Message[] = [
-  {
-    id: 1,
-    content: 'Привет! Как твои дела?',
-    timestamp: '14:20',
-    isSent: false,
-    type: 'text'
-  },
-  {
-    id: 2,
-    content: 'Отлично! Работаю над новым проектом',
-    timestamp: '14:21',
-    isSent: true,
-    type: 'text'
-  },
-  {
-    id: 3,
-    content: 'Голосовое сообщение',
-    timestamp: '14:22',
-    isSent: false,
-    type: 'voice',
-    duration: '0:15'
-  },
-  {
-    id: 4,
-    content: 'Звучит интересно! Расскажешь подробнее?',
-    timestamp: '14:23',
-    isSent: true,
-    type: 'text'
-  }
-]
-
 export default function Index() {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'calls' | 'settings'>('chats')
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(chats[0])
+  const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [message, setMessage] = useState('')
+  const [chats, setChats] = useState<Chat[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
+  const [stories, setStories] = useState<Story[]>([])
+
+  // Check if user is authenticated
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        const userData = await response.json()
+        setUser(userData)
+        loadUserData()
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadUserData = async () => {
+    try {
+      // Load chats
+      const chatsResponse = await fetch('/api/chats')
+      if (chatsResponse.ok) {
+        const chatsData = await chatsResponse.json()
+        setChats(chatsData)
+      }
+
+      // Load stories
+      const storiesResponse = await fetch('/api/stories')
+      if (storiesResponse.ok) {
+        const storiesData = await storiesResponse.json()
+        setStories([
+          { id: 0, name: 'Ваша история', avatar: user?.avatar || '/placeholder.svg', hasStory: false, isOwn: true },
+          ...storiesData
+        ])
+      }
+    } catch (error) {
+      console.error('Failed to load user data:', error)
+    }
+  }
+
+  const handleGoogleLogin = () => {
+    window.location.href = '/api/auth/google'
+  }
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedChat) return
+
+    const newMessage: Message = {
+      id: Date.now(),
+      content: message,
+      timestamp: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+      isSent: true,
+      type: 'text'
+    }
+
+    setMessages(prev => [...prev, newMessage])
+    setMessage('')
+
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: selectedChat.id,
+          content: message,
+          type: 'text'
+        })
+      })
+    } catch (error) {
+      console.error('Failed to send message:', error)
+    }
+  }
+
+  const startCall = async (type: 'audio' | 'video') => {
+    if (!selectedChat) return
+    
+    try {
+      const response = await fetch('/api/calls/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: selectedChat.id,
+          type
+        })
+      })
+      
+      if (response.ok) {
+        const callData = await response.json()
+        // Here you would integrate with WebRTC for actual calling
+        alert(`${type === 'video' ? 'Видео' : 'Аудио'} звонок ${selectedChat.name}`)
+      }
+    } catch (error) {
+      console.error('Failed to start call:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Загрузка...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="mb-8">
+            <Icon name="MessageCircle" size={64} className="mx-auto mb-4 text-muted-foreground" />
+            <h1 className="text-2xl font-semibold mb-2">Добро пожаловать</h1>
+            <p className="text-muted-foreground">Войдите с помощью Google, чтобы начать общение</p>
+          </div>
+          
+          <Button 
+            onClick={handleGoogleLogin}
+            size="lg"
+            className="w-full bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+          >
+            <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Войти через Google
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   const VoiceWaveAnimation = () => (
     <div className="flex items-center space-x-1 h-6">
@@ -184,41 +251,49 @@ export default function Index() {
 
               {/* Chat list */}
               <div className="flex-1 overflow-y-auto">
-                {chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    onClick={() => setSelectedChat(chat)}
-                    className={`p-4 border-b border-border cursor-pointer hover:bg-accent transition-colors ${
-                      selectedChat?.id === chat.id ? 'bg-accent' : ''
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <Avatar>
-                          <AvatarImage src={chat.avatar} />
-                          <AvatarFallback>{chat.name[0]}</AvatarFallback>
-                        </Avatar>
-                        {chat.online && (
-                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-medium truncate">{chat.name}</h3>
-                          <span className="text-xs text-muted-foreground">{chat.timestamp}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
-                          {chat.unread > 0 && (
-                            <Badge variant="default" className="ml-2">
-                              {chat.unread}
-                            </Badge>
+                {chats.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <Icon name="MessageCircle" size={48} className="mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">Нет активных чатов</p>
+                    <p className="text-sm text-muted-foreground">Найдите друзей, чтобы начать общение</p>
+                  </div>
+                ) : (
+                  chats.map((chat) => (
+                    <div
+                      key={chat.id}
+                      onClick={() => setSelectedChat(chat)}
+                      className={`p-4 border-b border-border cursor-pointer hover:bg-accent transition-colors ${
+                        selectedChat?.id === chat.id ? 'bg-accent' : ''
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="relative">
+                          <Avatar>
+                            <AvatarImage src={chat.avatar} />
+                            <AvatarFallback>{chat.name[0]}</AvatarFallback>
+                          </Avatar>
+                          {chat.online && (
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
                           )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-medium truncate">{chat.name}</h3>
+                            <span className="text-xs text-muted-foreground">{chat.timestamp}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground truncate">{chat.lastMessage}</p>
+                            {chat.unread > 0 && (
+                              <Badge variant="default" className="ml-2">
+                                {chat.unread}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -240,10 +315,10 @@ export default function Index() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => startCall('audio')}>
                       <Icon name="Phone" size={20} />
                     </Button>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => startCall('video')}>
                       <Icon name="Video" size={20} />
                     </Button>
                   </div>
@@ -251,33 +326,39 @@ export default function Index() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'} animate-slide-up`}
-                    >
-                      <div
-                        className={`max-w-xs px-4 py-2 rounded-2xl ${
-                          msg.isSent
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-secondary text-secondary-foreground'
-                        }`}
-                      >
-                        {msg.type === 'voice' ? (
-                          <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon" className="w-8 h-8">
-                              <Icon name="Play" size={16} />
-                            </Button>
-                            <VoiceWaveAnimation />
-                            <span className="text-xs">{msg.duration}</span>
-                          </div>
-                        ) : (
-                          <p>{msg.content}</p>
-                        )}
-                        <p className="text-xs opacity-70 mt-1">{msg.timestamp}</p>
-                      </div>
+                  {messages.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Начните переписку!</p>
                     </div>
-                  ))}
+                  ) : (
+                    messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.isSent ? 'justify-end' : 'justify-start'} animate-slide-up`}
+                      >
+                        <div
+                          className={`max-w-xs px-4 py-2 rounded-2xl ${
+                            msg.isSent
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-secondary text-secondary-foreground'
+                          }`}
+                        >
+                          {msg.type === 'voice' ? (
+                            <div className="flex items-center space-x-2">
+                              <Button variant="ghost" size="icon" className="w-8 h-8">
+                                <Icon name="Play" size={16} />
+                              </Button>
+                              <VoiceWaveAnimation />
+                              <span className="text-xs">{msg.duration}</span>
+                            </div>
+                          ) : (
+                            <p>{msg.content}</p>
+                          )}
+                          <p className="text-xs opacity-70 mt-1">{msg.timestamp}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Message input */}
@@ -287,6 +368,7 @@ export default function Index() {
                       <Input
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                         placeholder="Сообщение..."
                         className="pr-12"
                       />
@@ -300,7 +382,7 @@ export default function Index() {
                     </div>
                     
                     {message.trim() ? (
-                      <Button size="icon">
+                      <Button size="icon" onClick={handleSendMessage}>
                         <Icon name="Send" size={16} />
                       </Button>
                     ) : (
@@ -339,29 +421,9 @@ export default function Index() {
         return (
           <div className="p-6">
             <h2 className="text-2xl font-bold mb-6">Контакты</h2>
-            <div className="space-y-4">
-              {chats.filter(chat => chat.type === 'personal').map((contact) => (
-                <div key={contact.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-accent">
-                  <Avatar>
-                    <AvatarImage src={contact.avatar} />
-                    <AvatarFallback>{contact.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h3 className="font-medium">{contact.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {contact.online ? 'в сети' : 'был недавно'}
-                    </p>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button variant="ghost" size="icon">
-                      <Icon name="MessageCircle" size={16} />
-                    </Button>
-                    <Button variant="ghost" size="icon">
-                      <Icon name="Phone" size={16} />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+            <div className="text-center py-8">
+              <Icon name="Users" size={64} className="mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">Здесь будут ваши контакты</p>
             </div>
           </div>
         )
@@ -370,40 +432,9 @@ export default function Index() {
         return (
           <div className="p-6">
             <h2 className="text-2xl font-bold mb-6">Звонки</h2>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-accent">
-                <Avatar>
-                  <AvatarImage src="/placeholder.svg" />
-                  <AvatarFallback>А</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="font-medium">Анна Петрова</h3>
-                  <div className="flex items-center space-x-2">
-                    <Icon name="PhoneIncoming" size={14} className="text-green-500" />
-                    <span className="text-sm text-muted-foreground">Входящий, 14:30</span>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon">
-                  <Icon name="Phone" size={16} />
-                </Button>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-accent">
-                <Avatar>
-                  <AvatarImage src="/placeholder.svg" />
-                  <AvatarFallback>М</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h3 className="font-medium">Максим Иванов</h3>
-                  <div className="flex items-center space-x-2">
-                    <Icon name="PhoneOutgoing" size={14} className="text-blue-500" />
-                    <span className="text-sm text-muted-foreground">Исходящий, Вчера</span>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon">
-                  <Icon name="Video" size={16} />
-                </Button>
-              </div>
+            <div className="text-center py-8">
+              <Icon name="Phone" size={64} className="mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">История звонков пуста</p>
             </div>
           </div>
         )
@@ -414,18 +445,20 @@ export default function Index() {
             <h2 className="text-2xl font-bold mb-6">Настройки</h2>
             
             {/* Profile section */}
-            <div className="bg-card p-6 rounded-lg mb-6">
+            <div className="bg-card p-6 rounded-lg mb-6 border">
               <div className="flex items-center space-x-4 mb-4">
                 <Avatar className="w-16 h-16">
-                  <AvatarImage src="/placeholder.svg" />
-                  <AvatarFallback>Я</AvatarFallback>
+                  <AvatarImage src={user.avatar} />
+                  <AvatarFallback>{user.name[0]}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="text-lg font-semibold">Ваш профиль</h3>
-                  <p className="text-muted-foreground">+7 (999) 123-45-67</p>
+                  <h3 className="text-lg font-semibold">{user.name}</h3>
+                  <p className="text-muted-foreground">{user.email}</p>
                 </div>
               </div>
-              <Button variant="outline">Редактировать профиль</Button>
+              <Button variant="outline" onClick={() => window.location.href = '/api/auth/logout'}>
+                Выйти
+              </Button>
             </div>
 
             {/* Settings options */}
@@ -456,7 +489,7 @@ export default function Index() {
   }
 
   return (
-    <div className="h-screen bg-background text-foreground font-inter flex flex-col">
+    <div className="h-screen bg-background text-foreground flex flex-col">
       {/* Main content */}
       <div className="flex-1 overflow-hidden">
         {renderContent()}

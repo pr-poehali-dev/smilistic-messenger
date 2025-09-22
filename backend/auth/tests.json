@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "Google OAuth redirect",
+      "method": "GET",
+      "path": "/google",
+      "expectedStatus": 302,
+      "expectedHeaders": {
+        "Location": "string"
+      }
+    },
+    {
+      "name": "Auth status check - unauthorized",
+      "method": "GET", 
+      "path": "/me",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Logout",
+      "method": "GET",
+      "path": "/logout", 
+      "expectedStatus": 302,
+      "expectedHeaders": {
+        "Location": "string"
+      }
+    }
+  ]
+}
