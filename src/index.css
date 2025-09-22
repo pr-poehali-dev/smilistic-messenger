@@ -4,33 +4,33 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 248 250 252; /* #F8FAFC */
+    --foreground: 31 41 55; /* #1F2937 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 255 255 255; /* #FFFFFF */
+    --card-foreground: 31 41 55; /* #1F2937 */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 255 255 255; /* #FFFFFF */
+    --popover-foreground: 31 41 55; /* #1F2937 */
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 37 99 235; /* #2563EB */
+    --primary-foreground: 255 255 255; /* #FFFFFF */
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 241 245 249; /* #F1F5F9 */
+    --secondary-foreground: 71 85 105; /* #475569 */
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 241 245 249; /* #F1F5F9 */
+    --muted-foreground: 100 116 139; /* #64748B */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 219 234 254; /* #DBEAFE */
+    --accent-foreground: 30 64 175; /* #1E40AF */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 239 68 68; /* #EF4444 */
+    --destructive-foreground: 255 255 255; /* #FFFFFF */
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 226 232 240; /* #E2E8F0 */
+    --input: 226 232 240; /* #E2E8F0 */
+    --ring: 37 99 235; /* #2563EB */
 
     --radius: 0.5rem;
 
@@ -97,5 +97,8 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", sans-serif;
   }
 }
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
